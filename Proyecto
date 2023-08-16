@@ -1,0 +1,226 @@
+"Form1:"
+
+Imports System.Data
+Imports System.Data.SqlClient
+
+Public Class Form1
+    Private conexionBD As New Conexion_BD
+
+    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles Me.Load
+
+        conexionBD.Conectar()
+        MessageBox.Show("Conexión realizada")
+        conexionBD.Cerrar()
+
+    End Sub
+
+    Private Sub ButtonIngresar_Click(sender As Object, e As EventArgs) Handles Ingresar.Click
+
+        Dim usuario = TxtUsuario.Text
+        Dim clave = TxtClave.Text
+
+        If String.IsNullOrEmpty(usuario) OrElse String.IsNullOrEmpty(clave) Then
+            MessageBox.Show("Debe ingresar usuario y clave")
+            Return
+        End If
+
+        Try
+
+            Dim usuarioId = Helper.ObtenerUsuarioId(usuario)
+
+            Dim rol = "administrador" 'Asumiendo que está en la BD
+
+            If String.IsNullOrEmpty(rol) Then
+                MessageBox.Show("Credenciales inválidas")
+            Else
+                If rol = "administrador" Then
+                    Dim formAdmin = New FormAdministrador()
+                    formAdmin.Show()
+                Else
+                    Dim formUser = New FormOrdinario(usuarioId)
+                    formUser.Show()
+                End If
+            End If
+
+        Catch ex As Exception
+            MessageBox.Show("Error: " & ex.Message)
+        End Try
+
+    End Sub
+End Class
+
+
+"Form Ordinario (el form para los usuario)"
+Imports System.ComponentModel
+Imports System.Data
+Imports System.Data.SqlClient
+
+Public Class FormOrdinario
+    Public Conect As Conexion_BD = New Conexion_BD()
+    Private ReadOnly usuarioId As Integer ' Variable para almacenar el UsuarioId
+
+    ' Constructor que recibe el UsuarioId al crear el formulario
+    Public Sub New(ByVal id As Integer)
+        InitializeComponent()
+        usuarioId = id
+    End Sub
+
+    Private Sub FormOrdinario_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        Conect.Conectar()
+        MessageBox.Show("Conexión Realizada")
+        Conect.Cerrar()
+        DataGridView1.DataSource = Llenar_Grid()
+        LlenarComboBoxVuelos()
+
+    End Sub
+
+    Private Sub LlenarComboBoxVuelos()
+        Dim query As String = "SELECT AvionID, LineaAerea FROM Avion"
+        Dim dt As DataTable = New DataTable()
+
+        Try
+            Using cn As SqlConnection = Conect.Conectar()
+                cn.Open()
+                Using cmd As SqlCommand = New SqlCommand(query, cn)
+                    Using da As SqlDataAdapter = New SqlDataAdapter(cmd)
+                        da.Fill(dt)
+                    End Using
+                End Using
+            End Using
+
+            cmbVuelosDisponibles.DisplayMember = "LineaAerea"
+            cmbVuelosDisponibles.ValueMember = "AvionID"
+            cmbVuelosDisponibles.DataSource = dt
+
+        Catch ex As Exception
+            MessageBox.Show("Error al cargar los aviones: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            Conect.Cerrar() ' Cerrar la conexión
+        End Try
+    End Sub
+
+    Public Function Llenar_Grid() As DataTable
+        Dim dt As DataTable = New DataTable()
+        Dim consulta As String = "SELECT * FROM Pasajero"
+        Dim cmd As SqlCommand = New SqlCommand(consulta, Conect.Conectar())
+        Dim da As SqlDataAdapter = New SqlDataAdapter(cmd)
+        da.Fill(dt)
+        Conect.Cerrar()
+        Return dt
+
+
+        Return dt
+    End Function
+
+
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        Dim vueloId As Integer = Convert.ToInt32(cmbVuelosDisponibles.SelectedValue)
+        Dim insertar As String = "INSERT INTO Pasajero(Nombre, Nacionalidad, Destino, NumeroPasaporte, NumeroTiquete, HoraAtencion, FechaSalida) VALUES (@Nombre, @Nacionalidad, @Destino, @NumeroPasaporte, @NumeroTiquete, @HoraAtencion, @FechaSalida)"
+        Dim cmd As SqlCommand = New SqlCommand(insertar, Conect.Conectar())
+        cmd.Parameters.AddWithValue("@Nombre", txtnombre.Text)
+        cmd.Parameters.AddWithValue("@Nacionalidad", txtnacionalidad.Text)
+        cmd.Parameters.AddWithValue("@Destino", txtdestino.Text)
+        cmd.Parameters.AddWithValue("@NumeroPasaporte", txtpasaporte.Text)
+        cmd.Parameters.AddWithValue("@NumeroTiquete", txttiquete.Text)
+        cmd.Parameters.AddWithValue("@HoraAtencion", DateTime.Now.TimeOfDay) ' Hora actual
+        cmd.Parameters.AddWithValue("@FechaSalida", DateTime.Now.Date) ' Fecha actual
+        cmd.ExecuteNonQuery()
+        Conect.Cerrar()
+
+        MessageBox.Show("Datos ingresados correctamente!")
+
+        DataGridView1.DataSource = Llenar_Grid()
+    End Sub
+    Private Function ObtenerUsuarioId(nombreUsuario As String) As Integer
+        Dim usuarioId As Integer = 0
+
+        ' Consultar la base de datos para obtener el UsuarioId basado en el nombre de usuario
+        Dim query As String = "SELECT UsuarioId FROM Usuario WHERE NombreUsuario = @nombreUsuario"
+        Using cn As SqlConnection = (New Conexion_BD()).Conectar() ' Crear nueva instancia de Conexion_BD
+            Using cmd As New SqlCommand(query, cn)
+                cmd.Parameters.AddWithValue("@nombreUsuario", nombreUsuario)
+                Dim result As Object = cmd.ExecuteScalar()
+
+                If result IsNot Nothing AndAlso Integer.TryParse(result.ToString(), usuarioId) Then
+                    Return usuarioId
+                Else
+                    Return 0 ' En caso de error o no encontrar el usuario, devolver 0
+                End If
+            End Using
+        End Using
+    End Function
+End Class
+
+"Form administrador (en construccion y no es tan importante aun ya que prefiero terminar primero con el form ordinario):
+
+Imports System.Data
+Imports System.Data.SqlClient
+
+Public Class FormAdministrador
+    Public Conect As Conexion_BD = New Conexion_BD()
+    Private Sub FormAdministrador_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        Conect.Conectar()
+        MessageBox.Show("Conexión Realizada")
+    End Sub
+End Class
+
+Clase conexion_BD:
+
+Imports System.Data
+Imports System.Data.SqlClient
+Public Class Conexion_BD
+    Private cn As New SqlConnection("Data Source=NARVICK;Initial Catalog=ProyectoProgramacion;Integrated Security=True")
+
+    Public Function Conectar() As SqlConnection
+        Try
+            cn.Open()
+        Catch ex As Exception
+            MessageBox.Show(ex.Message)
+        End Try
+        Return cn
+    End Function
+    Public Sub Cerrar()
+        Try
+            cn.Close()
+        Catch ex As Exception
+            MessageBox.Show(ex.Message)
+        End Try
+    End Sub
+End Class
+
+Clase Helper:
+
+Imports System.Data.SqlClient
+Public Class Helper
+
+    Public Shared Function ObtenerUsuarioId(nombreUsuario As String) As Integer
+
+        Dim conexion = New SqlConnection("connectionstring")
+        Dim id As Integer
+
+        Try
+
+            Dim consulta = "SELECT Id FROM Usuarios WHERE Nombre = @nombre"
+
+            Dim comando = New SqlCommand(consulta, conexion)
+            comando.Parameters.Add("@nombre", SqlDbType.VarChar).Value = nombreUsuario
+
+            conexion.Open()
+            id = CInt(comando.ExecuteScalar())
+
+            Return id
+
+        Catch ex As Exception
+            MessageBox.Show("Error obteniendo usuario")
+            Return 0
+        Finally
+            conexion.Close()
+        End Try
+
+    End Function
+
+
+End Class
+
+
+ 
